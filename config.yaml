@@ -1,0 +1,51 @@
+# Robotic Arm Motion Tracker Configuration
+robot_motion_tracker:
+  version: "0.1" # Configuration Version
+  amq: # AMQP Broker Information
+    broker: &amq_connect_info
+      address: "localhost"
+      port: 5672
+    credentials: &amq_credential
+      username: "admin"
+      password: "rabbit"
+  pub_sub:
+    - pub_sub_1: &pub_sub_1
+        type: "amq"
+        broker: *amq_connect_info
+        credential: *amq_credential
+        exchange: "telemetry_exchange"
+        binding_keys: # Default Queue Logic will be: <binding_key>.robot.<id>
+          - "telemetry.robot."
+    - pub_sub_2: &pub_sub_2
+        type: "amq"
+        broker: *amq_connect_info
+        credential: *amq_credential
+        exchange: "telemetry_exchange"
+        binding_keys: # Default Queue Logic will be: <binding_key>.robot.<id>
+          - "telemetry.rmt."
+    - pub_sub_3: &pub_sub_3
+        type: "amq"
+        broker: *amq_connect_info
+        credential: *amq_credential
+        exchange: "db_exchange"
+        binding_keys: # Default Queue Logic will be: <binding_key>.robot.<id>
+          - "db.robot."
+  robots: # List of Robots to be simulated with unique ID
+    id: "3"
+    arm: # Robotic Arm Description
+      count: 2 # Number of Joints (excluding Wrist)
+      length:
+        shoulder_to_elbow : 3.0 # Length in Meters
+        elbow_to_gripper :  3.0 # Length in Meters
+    initial_position: # Placement of the Robot's Base
+      base: { x: 20.0, y: 20.0 }
+    motion:
+      control:
+        sample_rate : 0.1
+    protocol:
+      publishers:
+        - *pub_sub_2
+      subscribers:
+        - *pub_sub_1
+
+
