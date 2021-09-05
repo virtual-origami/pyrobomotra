@@ -74,13 +74,10 @@ class RobotArm2Tracker:
                 sys.exit(-1)
 
             self.id = robot_info["id"]
-            self.sample_time = robot_info["motion"]["control"]["sample_rate"]
             self.length_shoulder_to_elbow = robot_info["arm"]["length"]["shoulder_to_elbow"]
             self.length_elbow_to_gripper = robot_info["arm"]["length"]["elbow_to_gripper"]
-            self.base = np.array([robot_info["initial_position"]["base"]["x"],
-                                  robot_info["initial_position"]["base"]["y"]])
-            self.shoulder = np.array([robot_info["initial_position"]["base"]["x"],
-                                      robot_info["initial_position"]["base"]["y"]])
+            self.base = None
+            self.shoulder = None
             self.elbow = np.array([0, 0])
             self.wrist = np.array([0, 0])
             self.theta1 = 0.0
@@ -88,6 +85,7 @@ class RobotArm2Tracker:
             self.eventloop = event_loop
             self.amq_publishers = []
             self.amq_subscribers = []
+            self.data_ready = False
 
             if robot_info["protocol"]["publishers"] is not None:
                 for publisher in robot_info["protocol"]["publishers"]:
@@ -131,7 +129,7 @@ class RobotArm2Tracker:
         for publisher in self.amq_publishers:
             if exchange_name == publisher.exchange_name:
                 await publisher.publish(message_content=msg)
-                logger.debug(msg)
+                logger.debug(f'Pub: msg{msg}')
 
     async def connect(self):
         """connect: connect to the Message Broker
@@ -143,11 +141,23 @@ class RobotArm2Tracker:
             await subscriber.connect(mode="subscriber")
 
     async def update(self):
-        result = self.get_forward_kinematics()
-        await self.publish(
-            exchange_name="telemetry_exchange",
-            msg=json.dumps(result).encode()
-        )
+        if self.data_ready:
+            result_rmt_robot = dict(
+                id=self.id,
+                base=(self.base[0], self.base[1]),
+                shoulder=(self.shoulder[0], self.shoulder[1]),
+            )
+            result_rmt_robot.update(self.get_forward_kinematics())
+            result_rmt_robot.update({"timestamp": time.time_ns()})
+            await self.publish(
+                exchange_name="rmt_robot",
+                msg=json.dumps(result_rmt_robot).encode()
+            )
+            await self.publish(
+                exchange_name="visual_robot",
+                msg=json.dumps(result_rmt_robot).encode()
+            )
+            self.data_ready = False
 
     def get_forward_kinematics(self):
         """get_forward_kinematics: Forward Kinematics for the Robotic Arm"""
@@ -168,7 +178,6 @@ class RobotArm2Tracker:
                      )
 
         result = dict(
-            shoulder=(self.shoulder[0], self.shoulder[1]),
             elbow=(self.elbow[0], self.elbow[1]),
             wrist=(self.wrist[0], self.wrist[1])
         )
@@ -186,7 +195,7 @@ class RobotArm2Tracker:
         :return: None
         """
         try:
-            if "telemetry.robot" in binding_name:
+            if self.amq_subscribers[0].binding_keys[0] in binding_name:
                 # extract robot id
                 binding_delimited_array = binding_name.split(".")
                 robot_id = binding_delimited_array[len(binding_delimited_array) - 1]
@@ -198,11 +207,12 @@ class RobotArm2Tracker:
                         ("theta2" in msg_attributes) and \
                         ("base" in msg_attributes):
                     if robot_id == message_body["id"] and self.id == robot_id:
-                        logger.debug(message_body)
+                        logger.debug(f'Sub: msg{message_body}')
                         self.base = [message_body["base"][0], message_body["base"][1]]
                         self.shoulder = [message_body["shoulder"][0], message_body["shoulder"][1]]
                         self.theta1 = message_body["theta1"]
                         self.theta2 = message_body["theta2"]
+                        self.data_ready = True
                     else:
                         return False  # robot id in binding name and message body does not match
                 else:

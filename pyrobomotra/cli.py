@@ -65,33 +65,32 @@ async def app(eventloop, config):
     while True:
         # Read configuration
         try:
-            generator_config = read_config(config)
+            robot_motion_tracker_config = read_config(config)
         except Exception as e:
             logger.error('Error while reading configuration:')
             logger.error(e)
             break
 
-        logger.debug("Robot Motion Tracker Version: %s", generator_config['version'])
-
-        # check if amq or mqtt key description present in configuration
-        if ("amq" not in generator_config) and ("mqtt" not in generator_config):
-            logger.critical("Please provide either 'amq' or 'mqtt' configuration")
-            sys.exit(-1)
+        logger.debug("Robot Motion Tracker Version: %s", robot_motion_tracker_config['version'])
 
         # robot instantiation
-        robot = generator_config["robots"]
-        # check for protocol key
-        if "protocol" not in robot:
-            logger.error("no 'protocol' key found.")
-            sys.exit(-1)
+        robots_config = robot_motion_tracker_config["robots"]
+        loop_interval = robot_motion_tracker_config["attributes"]["interval"]
+        for robot_config in robots_config:
+            # check for protocol key
+            if "protocol" not in robot_config:
+                logger.error("no 'protocol' key found.")
+                sys.exit(-1)
 
-        robo = RobotArm2Tracker(event_loop=eventloop, robot_info=robot)
-        await robo.connect()
+            robo = RobotArm2Tracker(event_loop=eventloop, robot_info=robot_config)
+            robots_in_ws.append(robo)
+            await robo.connect()
 
         # continuously monitor signal handle and update robot motion
         while not is_sighup_received:
-            await robo.update()
-            await asyncio.sleep(0.1)
+            for robo in robots_in_ws:
+                await robo.update()
+            await asyncio.sleep(loop_interval)
 
         # If SIGHUP Occurs, Delete the instances
         _graceful_shutdown()

@@ -1,6 +1,5 @@
 # Robotic Arm Motion Tracker Configuration
-robot_motion_tracker:
-  version: "0.1" # Configuration Version
+preset:
   amq: # AMQP Broker Information
     broker: &amq_connect_info
       address: "localhost"
@@ -9,43 +8,56 @@ robot_motion_tracker:
       username: "admin"
       password: "rabbit"
   pub_sub:
-    - pub_sub_1: &pub_sub_1
+    - pub_sub_1: &sub_gen_robot
         type: "amq"
         broker: *amq_connect_info
         credential: *amq_credential
-        exchange: "telemetry_exchange"
+        exchange: "generator_robot"
         binding_keys: # Default Queue Logic will be: <binding_key>.robot.<id>
-          - "telemetry.robot."
-    - pub_sub_2: &pub_sub_2
+          - "generator.robot."
+    - pub_sub_2: &pub_rmt_robot
         type: "amq"
         broker: *amq_connect_info
         credential: *amq_credential
-        exchange: "telemetry_exchange"
+        exchange: "rmt_robot"
         binding_keys: # Default Queue Logic will be: <binding_key>.robot.<id>
-          - "telemetry.rmt."
-    - pub_sub_3: &pub_sub_3
+          - "rmt.robot."
+    - pub_sub_3: &pub_visual_robot
         type: "amq"
         broker: *amq_connect_info
         credential: *amq_credential
-        exchange: "db_exchange"
+        exchange: "visual_robot"
         binding_keys: # Default Queue Logic will be: <binding_key>.robot.<id>
-          - "db.robot."
-  robots: # List of Robots to be simulated with unique ID
-    id: "3"
-    arm: # Robotic Arm Description
+          - "visual.rmt.robot."
+  pub_sub_protocols:
+    - pubsub_protocol_1: &pub_sub_protocol_1
+        publishers:
+          - *pub_rmt_robot
+          - *pub_visual_robot
+        subscribers:
+          - *sub_gen_robot
+  robot_arm_design:
+    two_arm_robot_1: &two_arm_robot_1
       count: 2 # Number of Joints (excluding Wrist)
       length:
-        shoulder_to_elbow : 3.0 # Length in Meters
-        elbow_to_gripper :  3.0 # Length in Meters
-    initial_position: # Placement of the Robot's Base
-      base: { x: 20.0, y: 20.0 }
-    motion:
-      control:
-        sample_rate : 0.1
-    protocol:
-      publishers:
-        - *pub_sub_2
-      subscribers:
-        - *pub_sub_1
-
+        shoulder_to_elbow: 6.0 # Length in Meters
+        elbow_to_gripper: 6.0 # Length in Meters
+  attributes: &attributes
+    interval: 0.1
+robot_motion_tracker:
+  version: "0.1" # Configuration Version
+  attributes: *attributes
+  robots: # List of Robots to be simulated with unique ID
+    - id: "1"
+      arm: *two_arm_robot_1
+      protocol: *pub_sub_protocol_1
+    - id: "2"
+      arm: *two_arm_robot_1
+      protocol: *pub_sub_protocol_1
+    - id: "3"
+      arm: *two_arm_robot_1
+      protocol: *pub_sub_protocol_1
+    - id: "4"
+      arm: *two_arm_robot_1
+      protocol: *pub_sub_protocol_1
 
