@@ -51,7 +51,7 @@ import time
 import traceback
 import ast
 import numpy as np
-from pyrobomotra.pub_sub.AMQP import PubSubAMQP
+from pub_sub.AMQP import PubSubAMQP
 
 # logger for this file
 logging.basicConfig(stream=sys.stdout, level=logging.DEBUG,
@@ -63,7 +63,7 @@ class RobotArm2Tracker:
     """This class implements Robot Arm with 2 joint ARM
     """
 
-    def __init__(self, event_loop, robot_info):
+    def __init__(self, event_loop, robot_info, robot_id):
         """RobotArm2: Two-Joint Robotic Arm Model
         - event_loop: Python AsyncIO Eventloop
         - robot_info: Python Dictionary with configuration of the Robot
@@ -73,7 +73,7 @@ class RobotArm2Tracker:
                 logger.error("Robot Information Cannot Be None")
                 sys.exit(-1)
 
-            self.id = robot_info["id"]
+            self.id = robot_id
             self.length_shoulder_to_elbow = robot_info["arm"]["length"]["shoulder_to_elbow"]
             self.length_elbow_to_gripper = robot_info["arm"]["length"]["elbow_to_gripper"]
             self.base = None
@@ -154,7 +154,7 @@ class RobotArm2Tracker:
                 msg=json.dumps(result_rmt_robot).encode()
             )
             await self.publish(
-                exchange_name="visual_robot",
+                exchange_name="visual",
                 msg=json.dumps(result_rmt_robot).encode()
             )
             self.data_ready = False
@@ -195,28 +195,26 @@ class RobotArm2Tracker:
         :return: None
         """
         try:
-            if self.amq_subscribers[0].binding_keys[0] in binding_name:
-                # extract robot id
-                binding_delimited_array = binding_name.split(".")
-                robot_id = binding_delimited_array[len(binding_delimited_array) - 1]
-                message_body = ast.literal_eval(message_body.decode('utf-8'))
-                msg_attributes = message_body.keys()
-                if ("id" in msg_attributes) and \
-                        ("shoulder" in msg_attributes) and \
-                        ("theta1" in msg_attributes) and \
-                        ("theta2" in msg_attributes) and \
-                        ("base" in msg_attributes):
-                    if robot_id == message_body["id"] and self.id == robot_id:
-                        logger.debug(f'Sub: msg{message_body}')
-                        self.base = [message_body["base"][0], message_body["base"][1]]
-                        self.shoulder = [message_body["shoulder"][0], message_body["shoulder"][1]]
-                        self.theta1 = message_body["theta1"]
-                        self.theta2 = message_body["theta2"]
-                        self.data_ready = True
-                    else:
-                        return False  # robot id in binding name and message body does not match
-                else:
-                    return False  # invalid message body format
+            for subscriber in self.amq_subscribers:
+                if subscriber.exchange_name == exchange_name:
+                    if "generator.robot." in binding_name:
+                        # extract robot id
+                        binding_delimited_array = binding_name.split(".")
+                        robot_id = binding_delimited_array[len(binding_delimited_array) - 1]
+                        message_body = ast.literal_eval(message_body.decode('utf-8'))
+                        msg_attributes = message_body.keys()
+                        if ("id" in msg_attributes) and \
+                                ("shoulder" in msg_attributes) and \
+                                ("theta1" in msg_attributes) and \
+                                ("theta2" in msg_attributes) and \
+                                ("base" in msg_attributes):
+                            if robot_id == message_body["id"] and self.id == robot_id:
+                                logger.debug(f'Sub: msg{message_body}')
+                                self.base = [message_body["base"][0], message_body["base"][1]]
+                                self.shoulder = [message_body["shoulder"][0], message_body["shoulder"][1]]
+                                self.theta1 = message_body["theta1"]
+                                self.theta2 = message_body["theta2"]
+                                self.data_ready = True
 
         except AssertionError as e:
             logging.critical(e)

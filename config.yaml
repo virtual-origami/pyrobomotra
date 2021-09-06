@@ -8,7 +8,7 @@ preset:
       username: "admin"
       password: "rabbit"
   pub_sub:
-    - pub_sub_1: &sub_gen_robot
+    - pub_sub_1: &sub_generator_robot
         type: "amq"
         broker: *amq_connect_info
         credential: *amq_credential
@@ -22,20 +22,20 @@ preset:
         exchange: "rmt_robot"
         binding_keys: # Default Queue Logic will be: <binding_key>.robot.<id>
           - "rmt.robot."
-    - pub_sub_3: &pub_visual_robot
+    - pub_sub_3: &pub_visual
         type: "amq"
         broker: *amq_connect_info
         credential: *amq_credential
-        exchange: "visual_robot"
+        exchange: "visual"
         binding_keys: # Default Queue Logic will be: <binding_key>.robot.<id>
           - "visual.rmt.robot."
   pub_sub_protocols:
     - pubsub_protocol_1: &pub_sub_protocol_1
         publishers:
           - *pub_rmt_robot
-          - *pub_visual_robot
+          - *pub_visual
         subscribers:
-          - *sub_gen_robot
+          - *sub_generator_robot
   robot_arm_design:
     two_arm_robot_1: &two_arm_robot_1
       count: 2 # Number of Joints (excluding Wrist)
@@ -45,19 +45,18 @@ preset:
   attributes: &attributes
     interval: 0.1
 robot_motion_tracker:
-  version: "0.1" # Configuration Version
+  version: "0.1" # Configuration Version-
   attributes: *attributes
   robots: # List of Robots to be simulated with unique ID
-    - id: "1"
-      arm: *two_arm_robot_1
+    - arm: *two_arm_robot_1
       protocol: *pub_sub_protocol_1
-    - id: "2"
-      arm: *two_arm_robot_1
-      protocol: *pub_sub_protocol_1
-    - id: "3"
-      arm: *two_arm_robot_1
-      protocol: *pub_sub_protocol_1
-    - id: "4"
-      arm: *two_arm_robot_1
-      protocol: *pub_sub_protocol_1
+#    - id: "2"
+#      arm: *two_arm_robot_1
+#      protocol: *pub_sub_protocol_1
+#    - id: "3"
+#      arm: *two_arm_robot_1
+#      protocol: *pub_sub_protocol_1
+#    - id: "4"
+#      arm: *two_arm_robot_1
+#      protocol: *pub_sub_protocol_1
 

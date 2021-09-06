@@ -10,7 +10,7 @@ import os
 import signal
 import sys
 import yaml
-from pyrobomotra.robot.model import RobotArm2Tracker
+from robot.model import RobotArm2Tracker
 
 logging.basicConfig(level=logging.WARNING, format='%(levelname)-8s [%(filename)s:%(lineno)d] %(message)s')
 
@@ -46,18 +46,19 @@ def parse_arguments():
     """Arguments to run the script"""
     parser = argparse.ArgumentParser(description='Robotic Arm Motion Tracker')
     parser.add_argument('--config', '-c', required=True, help='YAML Configuration File for RobotMotionTra with path')
+    parser.add_argument('--id', '-i', required=True, help='Provide robot id')
     return parser.parse_args()
 
 
 def sighup_handler(name):
     """SIGHUP HANDLER"""
-    #logger.debug(f'signal_handler {name}')
+    # logger.debug(f'signal_handler {name}')
     logger.info('Updating the Robotic Configuration')
     global is_sighup_received
     is_sighup_received = True
 
 
-async def app(eventloop, config):
+async def app(eventloop, config, robot_id):
     """Main application for Robot Motion Tracker"""
     global robots_in_ws
     global is_sighup_received
@@ -82,7 +83,7 @@ async def app(eventloop, config):
                 logger.error("no 'protocol' key found.")
                 sys.exit(-1)
 
-            robo = RobotArm2Tracker(event_loop=eventloop, robot_info=robot_config)
+            robo = RobotArm2Tracker(event_loop=eventloop, robot_info=robot_config, robot_id=robot_id)
             robots_in_ws.append(robo)
             await robo.connect()
 
@@ -120,7 +121,7 @@ def main():
     event_loop = asyncio.get_event_loop()
     event_loop.add_signal_handler(signal.SIGHUP, functools.partial(sighup_handler, name='SIGHUP'))
     try:
-        event_loop.run_until_complete(app(event_loop, args.config))
+        event_loop.run_until_complete(app(eventloop=event_loop, config=args.config, robot_id=args.id))
     except KeyboardInterrupt:
         logger.error('CTRL+C Pressed')
         _graceful_shutdown()
