@@ -2,7 +2,7 @@
 preset:
   amq: # AMQP Broker Information
     broker: &amq_connect_info
-      address: "localhost"
+      address: "rabbitmq"
       port: 5672
     credentials: &amq_credential
       username: "admin"

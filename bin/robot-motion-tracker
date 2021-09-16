@@ -1,0 +1,6 @@
+#!/usr/bin/env python3
+
+import pyrobomotra.cli
+
+if __name__ == "__main__":
+    pyrobomotra.cli.main()

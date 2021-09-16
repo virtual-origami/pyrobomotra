@@ -51,9 +51,11 @@ import time
 import traceback
 import ast
 import numpy as np
-from pub_sub.AMQP import PubSubAMQP
+from pyrobomotra.pub_sub import PubSubAMQP
 
 # logger for this file
+
+
 logging.basicConfig(stream=sys.stdout, level=logging.DEBUG,
                     format='%(levelname)-8s [%(filename)s:%(lineno)d] %(message)s')
 logger = logging.getLogger("Robot:Model")
