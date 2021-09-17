@@ -2,10 +2,16 @@
 preset:
   amq: # AMQP Broker Information
     broker: &amq_connect_info
-      address: "rabbitmq"
+      address: "localhost"
       port: 5672
     credentials: &amq_credential
       username: "admin"
+      password: "rabbit"
+  redis: &redis_connect_info
+    server:
+      address: "localhost"
+      port: 6379
+    credentials:
       password: "rabbit"
   pub_sub:
     - pub_sub_1: &sub_generator_robot
@@ -13,22 +19,22 @@ preset:
         broker: *amq_connect_info
         credential: *amq_credential
         exchange: "generator_robot"
-        binding_keys: # Default Queue Logic will be: <binding_key>.robot.<id>
-          - "generator.robot."
+        queue: "generator_robot_rk"
+        handler: "robot_msg_handler"
     - pub_sub_2: &pub_rmt_robot
         type: "amq"
         broker: *amq_connect_info
         credential: *amq_credential
         exchange: "rmt_robot"
-        binding_keys: # Default Queue Logic will be: <binding_key>.robot.<id>
-          - "rmt.robot."
+        queue: "rmt_robot_rk"
+        handler:
     - pub_sub_3: &pub_visual
         type: "amq"
         broker: *amq_connect_info
         credential: *amq_credential
         exchange: "visual"
-        binding_keys: # Default Queue Logic will be: <binding_key>.robot.<id>
-          - "visual.rmt.robot."
+        queue: "visual_rmt_robot_rk"
+        handler:
   pub_sub_protocols:
     - pubsub_protocol_1: &pub_sub_protocol_1
         publishers:
@@ -48,15 +54,8 @@ robot_motion_tracker:
   version: "0.1" # Configuration Version-
   attributes: *attributes
   robots: # List of Robots to be simulated with unique ID
-    - arm: *two_arm_robot_1
-      protocol: *pub_sub_protocol_1
-#    - id: "2"
-#      arm: *two_arm_robot_1
-#      protocol: *pub_sub_protocol_1
-#    - id: "3"
-#      arm: *two_arm_robot_1
-#      protocol: *pub_sub_protocol_1
-#    - id: "4"
-#      arm: *two_arm_robot_1
-#      protocol: *pub_sub_protocol_1
+    - protocol: *pub_sub_protocol_1
+      in_mem_db: *redis_connect_info
+
+
 

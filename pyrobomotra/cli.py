@@ -47,7 +47,6 @@ def parse_arguments():
     """Arguments to run the script"""
     parser = argparse.ArgumentParser(description='Robotic Arm Motion Tracker')
     parser.add_argument('--config', '-c', required=True, help='YAML Configuration File for RobotMotionTra with path')
-    parser.add_argument('--id', '-i', required=True, help='Provide robot id')
     return parser.parse_args()
 
 
@@ -59,7 +58,7 @@ def sighup_handler(name):
     is_sighup_received = True
 
 
-async def app(eventloop, config, robot_id):
+async def app(eventloop, config):
     """Main application for Robot Motion Tracker"""
     global robots_in_ws
     global is_sighup_received
@@ -84,7 +83,7 @@ async def app(eventloop, config, robot_id):
                 logger.error("no 'protocol' key found.")
                 sys.exit(-1)
 
-            robo = RobotArm2Tracker(event_loop=eventloop, robot_info=robot_config, robot_id=robot_id)
+            robo = RobotArm2Tracker(event_loop=eventloop, robot_info=robot_config)
             robots_in_ws.append(robo)
             await robo.connect()
 
@@ -112,7 +111,7 @@ def read_config(yaml_config_file):
         raise FileNotFoundError
 
 
-def main():
+def app_main():
     """Initialization"""
     args = parse_arguments()
     if not os.path.isfile(args.config):
@@ -122,11 +121,9 @@ def main():
     event_loop = asyncio.get_event_loop()
     event_loop.add_signal_handler(signal.SIGHUP, functools.partial(sighup_handler, name='SIGHUP'))
     try:
-        event_loop.run_until_complete(app(eventloop=event_loop, config=args.config, robot_id=args.id))
+        event_loop.run_until_complete(app(eventloop=event_loop, config=args.config))
     except KeyboardInterrupt:
         logger.error('CTRL+C Pressed')
         _graceful_shutdown()
 
 
-if __name__ == "__main__":
-    main()
