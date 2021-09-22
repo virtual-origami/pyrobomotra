@@ -13,7 +13,6 @@ import yaml
 from pyrobomotra.robot import RobotArm2Tracker
 from pyrobomotra.health import HealthServer
 
-
 logging.basicConfig(level=logging.WARNING, format='%(levelname)-8s [%(filename)s:%(lineno)d] %(message)s')
 
 # logger for this file
@@ -76,9 +75,9 @@ async def app(eventloop, config):
         logger.debug("Robot Motion Tracker Version: %s", robot_motion_tracker_config['version'])
 
         # health server
-        health_server = HealthServer(config=robot_motion_tracker_config["health_server"],event_loop=eventloop)
-	eventloop.create_task(health_server.server_loop())
-	
+        health_server = HealthServer(config=robot_motion_tracker_config["health_server"], event_loop=eventloop)
+        eventloop.create_task(health_server.server_loop())
+
         # robot instantiation
         robots_config = robot_motion_tracker_config["robots"]
         loop_interval = robot_motion_tracker_config["attributes"]["interval"]
@@ -105,7 +104,7 @@ async def app(eventloop, config):
         is_sighup_received = False
 
 
-def read_config(yaml_config_file,key):
+def read_config(yaml_config_file, key):
     """Parse the given Configuration File"""
     if os.path.exists(yaml_config_file):
         with open(yaml_config_file, 'r') as config_file:
@@ -130,5 +129,3 @@ def app_main():
     except KeyboardInterrupt:
         logger.error('CTRL+C Pressed')
         _graceful_shutdown()
-
-
