@@ -77,7 +77,8 @@ async def app(eventloop, config):
 
         # health server
         health_server = HealthServer(config=robot_motion_tracker_config["health_server"],event_loop=eventloop)
-
+	eventloop.create_task(health_server.server_loop())
+	
         # robot instantiation
         robots_config = robot_motion_tracker_config["robots"]
         loop_interval = robot_motion_tracker_config["attributes"]["interval"]
@@ -95,7 +96,6 @@ async def app(eventloop, config):
         while not is_sighup_received:
             for robo in robots_in_ws:
                 await robo.update()
-            await health_server.server_loop()
             await asyncio.sleep(loop_interval)
 
         # If SIGHUP Occurs, Delete the instances
