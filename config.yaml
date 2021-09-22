@@ -8,7 +8,7 @@ preset:
       username: "admin"
       password: "rabbit"
   health_server_info: &health_server_info
-    host: "127.0.0.1"
+    host: "pyrobomotra"
     port: "9012"
   redis: &redis_connect_info
     server:
