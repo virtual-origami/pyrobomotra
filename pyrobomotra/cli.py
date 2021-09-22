@@ -67,7 +67,7 @@ async def app(eventloop, config):
     while True:
         # Read configuration
         try:
-            robot_motion_tracker_config = read_config(config)
+            robot_motion_tracker_config = read_config(yaml_config_file=config, key='robot_motion_tracker')
         except Exception as e:
             logger.error('Error while reading configuration:')
             logger.error(e)
@@ -105,12 +105,12 @@ async def app(eventloop, config):
         is_sighup_received = False
 
 
-def read_config(yaml_config_file):
+def read_config(yaml_config_file,key):
     """Parse the given Configuration File"""
     if os.path.exists(yaml_config_file):
         with open(yaml_config_file, 'r') as config_file:
             yaml_as_dict = yaml.load(config_file, Loader=yaml.FullLoader)
-        return yaml_as_dict['robot_motion_tracker']
+        return yaml_as_dict[key]
     else:
         logger.error('YAML Configuration File not Found.')
         raise FileNotFoundError
