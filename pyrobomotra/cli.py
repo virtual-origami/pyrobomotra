@@ -11,7 +11,7 @@ import signal
 import sys
 import yaml
 from pyrobomotra.robot import RobotArm2Tracker
-
+from pyrobomotra.health import HealthServer
 
 logging.basicConfig(level=logging.WARNING, format='%(levelname)-8s [%(filename)s:%(lineno)d] %(message)s')
 
@@ -47,7 +47,6 @@ def parse_arguments():
     """Arguments to run the script"""
     parser = argparse.ArgumentParser(description='Robotic Arm Motion Tracker')
     parser.add_argument('--config', '-c', required=True, help='YAML Configuration File for RobotMotionTra with path')
-    parser.add_argument('--id', '-i', required=True, help='Provide robot id')
     return parser.parse_args()
 
 
@@ -59,7 +58,7 @@ def sighup_handler(name):
     is_sighup_received = True
 
 
-async def app(eventloop, config, robot_id):
+async def app(eventloop, config):
     """Main application for Robot Motion Tracker"""
     global robots_in_ws
     global is_sighup_received
@@ -67,13 +66,17 @@ async def app(eventloop, config, robot_id):
     while True:
         # Read configuration
         try:
-            robot_motion_tracker_config = read_config(config)
+            robot_motion_tracker_config = read_config(yaml_config_file=config, key='robot_motion_tracker')
         except Exception as e:
             logger.error('Error while reading configuration:')
             logger.error(e)
             break
 
         logger.debug("Robot Motion Tracker Version: %s", robot_motion_tracker_config['version'])
+
+        # health server
+        health_server = HealthServer(config=robot_motion_tracker_config["health_server"], event_loop=eventloop)
+        eventloop.create_task(health_server.server_loop())
 
         # robot instantiation
         robots_config = robot_motion_tracker_config["robots"]
@@ -84,7 +87,7 @@ async def app(eventloop, config, robot_id):
                 logger.error("no 'protocol' key found.")
                 sys.exit(-1)
 
-            robo = RobotArm2Tracker(event_loop=eventloop, robot_info=robot_config, robot_id=robot_id)
+            robo = RobotArm2Tracker(event_loop=eventloop, robot_info=robot_config)
             robots_in_ws.append(robo)
             await robo.connect()
 
@@ -101,18 +104,18 @@ async def app(eventloop, config, robot_id):
         is_sighup_received = False
 
 
-def read_config(yaml_config_file):
+def read_config(yaml_config_file, key):
     """Parse the given Configuration File"""
     if os.path.exists(yaml_config_file):
         with open(yaml_config_file, 'r') as config_file:
             yaml_as_dict = yaml.load(config_file, Loader=yaml.FullLoader)
-        return yaml_as_dict['robot_motion_tracker']
+        return yaml_as_dict[key]
     else:
         logger.error('YAML Configuration File not Found.')
         raise FileNotFoundError
 
 
-def main():
+def app_main():
     """Initialization"""
     args = parse_arguments()
     if not os.path.isfile(args.config):
@@ -122,11 +125,7 @@ def main():
     event_loop = asyncio.get_event_loop()
     event_loop.add_signal_handler(signal.SIGHUP, functools.partial(sighup_handler, name='SIGHUP'))
     try:
-        event_loop.run_until_complete(app(eventloop=event_loop, config=args.config, robot_id=args.id))
+        event_loop.run_until_complete(app(eventloop=event_loop, config=args.config))
     except KeyboardInterrupt:
         logger.error('CTRL+C Pressed')
         _graceful_shutdown()
-
-
-if __name__ == "__main__":
-    main()

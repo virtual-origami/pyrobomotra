@@ -46,12 +46,14 @@ import asyncio
 import json
 import logging
 import math
+import queue
 import sys
 import time
 import traceback
 import ast
 import numpy as np
 from pyrobomotra.pub_sub import PubSubAMQP
+from pyrobomotra.in_mem_db import RedisDB
 
 # logger for this file
 
@@ -65,7 +67,7 @@ class RobotArm2Tracker:
     """This class implements Robot Arm with 2 joint ARM
     """
 
-    def __init__(self, event_loop, robot_info, robot_id):
+    def __init__(self, event_loop, robot_info):
         """RobotArm2: Two-Joint Robotic Arm Model
         - event_loop: Python AsyncIO Eventloop
         - robot_info: Python Dictionary with configuration of the Robot
@@ -75,29 +77,28 @@ class RobotArm2Tracker:
                 logger.error("Robot Information Cannot Be None")
                 sys.exit(-1)
 
-            self.id = robot_id
-            self.length_shoulder_to_elbow = robot_info["arm"]["length"]["shoulder_to_elbow"]
-            self.length_elbow_to_gripper = robot_info["arm"]["length"]["elbow_to_gripper"]
-            self.base = None
-            self.shoulder = None
-            self.elbow = np.array([0, 0])
-            self.wrist = np.array([0, 0])
-            self.theta1 = 0.0
-            self.theta2 = 0.0
+            self.length_shoulder_to_elbow = 0.0
+            self.length_elbow_to_gripper = 0.0
+            self.base = [0.0, 0.0]
+            self.shoulder = [0.0, 0.0]
+
+            self.consume_telemetry_queue = queue.SimpleQueue()
+            self.redis_db = RedisDB(host=robot_info["in_mem_db"]["server"]["address"],
+                                    port=robot_info["in_mem_db"]["server"]["port"],
+                                    password=robot_info["in_mem_db"]["credentials"]["password"])
             self.eventloop = event_loop
-            self.amq_publishers = []
-            self.amq_subscribers = []
-            self.data_ready = False
+            self.publishers = []
+            self.subscribers = []
 
             if robot_info["protocol"]["publishers"] is not None:
                 for publisher in robot_info["protocol"]["publishers"]:
                     if publisher["type"] == "amq":
                         logger.debug('Setting Up AMQP Publisher for Robot')
-                        self.amq_publishers.append(
+                        self.publishers.append(
                             PubSubAMQP(
                                 eventloop=self.eventloop,
                                 config_file=publisher,
-                                binding_suffix=self.id
+                                binding_suffix=""
                             )
                         )
                     else:
@@ -108,11 +109,11 @@ class RobotArm2Tracker:
                 for subscribers in robot_info["protocol"]["subscribers"]:
                     if subscribers["type"] == "amq":
                         logger.debug('Setting Up AMQP Subcriber for Robot')
-                        self.amq_subscribers.append(
+                        self.subscribers.append(
                             PubSubAMQP(
                                 eventloop=self.eventloop,
                                 config_file=subscribers,
-                                binding_suffix=self.id,
+                                binding_suffix="",
                                 app_callback=self.consume_telemetry_msgs
                             )
                         )
@@ -128,7 +129,7 @@ class RobotArm2Tracker:
         """publish: publish robotic arm movement data to Message Broker
         - msg: message content
         """
-        for publisher in self.amq_publishers:
+        for publisher in self.publishers:
             if exchange_name == publisher.exchange_name:
                 await publisher.publish(message_content=msg)
                 logger.debug(f'Pub: msg{msg}')
@@ -136,87 +137,125 @@ class RobotArm2Tracker:
     async def connect(self):
         """connect: connect to the Message Broker
         """
-        for publisher in self.amq_publishers:
+        for publisher in self.publishers:
             await publisher.connect()
 
-        for subscriber in self.amq_subscribers:
+        for subscriber in self.subscribers:
             await subscriber.connect(mode="subscriber")
 
+    def update_states(self, state_information):
+        self.length_shoulder_to_elbow = float(state_information["length_shoulder_to_elbow"])
+        self.length_elbow_to_gripper = float(state_information["length_elbow_to_gripper"])
+        self.base = state_information["base"]
+        self.shoulder = state_information["shoulder"]
+
+    def get_states_from_db(self, robot_id):
+        name = "robot_" + robot_id
+        db_result = self.redis_db.get(key=name)
+        if db_result is None:
+            return None
+        result = json.loads(db_result)
+        return result
+
+    def restore_states_in_db(self, robot_id):
+        state_information = {
+            "base": self.base,
+            "shoulder": self.shoulder,
+            "length_shoulder_to_elbow": self.length_shoulder_to_elbow,
+            "length_elbow_to_gripper": self.length_elbow_to_gripper
+        }
+        name = "robot_" + robot_id
+        json_state_information = json.dumps(state_information)
+        self.redis_db.set(key=name, value=json_state_information)
+
     async def update(self):
-        if self.data_ready:
-            result_rmt_robot = dict(
-                id=self.id,
-                base=(self.base[0], self.base[1]),
-                shoulder=(self.shoulder[0], self.shoulder[1]),
-            )
-            result_rmt_robot.update(self.get_forward_kinematics())
-            result_rmt_robot.update({"timestamp": time.time_ns()})
-            await self.publish(
-                exchange_name="rmt_robot",
-                msg=json.dumps(result_rmt_robot).encode()
-            )
-            await self.publish(
-                exchange_name="visual",
-                msg=json.dumps(result_rmt_robot).encode()
-            )
-            self.data_ready = False
 
-    def get_forward_kinematics(self):
+        if not self.consume_telemetry_queue.empty():
+            new_measurement = self.consume_telemetry_queue.get_nowait()
+
+            new_measurement_id = new_measurement["id"]
+            state_info = self.get_states_from_db(new_measurement_id)
+
+            if state_info is not None and new_measurement_id is not None:
+                self.update_states(state_information=state_info)
+                kinematic_result = self.get_forward_kinematics(
+                    theta1=new_measurement["theta1"],
+                    theta2=new_measurement["theta2"]
+                )
+                result_rmt_robot = {
+                    "id": new_measurement["id"],
+                    "base": (self.base[0], self.base[1]),
+                    "shoulder": (self.shoulder[0], self.shoulder[1]),
+                    "timestamp": time.time_ns()
+                }
+                result_rmt_robot.update(kinematic_result)
+                await self.publish(
+                    exchange_name="rmt_robot",
+                    msg=json.dumps(result_rmt_robot).encode())
+                await self.publish(
+                    exchange_name="visual",
+                    msg=json.dumps(result_rmt_robot).encode())
+
+    def get_forward_kinematics(self, theta1, theta2):
         """get_forward_kinematics: Forward Kinematics for the Robotic Arm"""
-        self.elbow = self.shoulder + \
-                     np.array(
-                         [
-                             self.length_shoulder_to_elbow * np.cos(self.theta1),
-                             self.length_shoulder_to_elbow * np.sin(self.theta1)
-                         ]
-                     )
+        elbow = self.shoulder + \
+                np.array(
+                    [
+                        self.length_shoulder_to_elbow * np.cos(theta1),
+                        self.length_shoulder_to_elbow * np.sin(theta1)
+                    ]
+                )
 
-        self.wrist = self.elbow + \
-                     np.array(
-                         [
-                             self.length_elbow_to_gripper * np.cos(self.theta1 + self.theta2),
-                             self.length_elbow_to_gripper * np.sin(self.theta1 + self.theta2)
-                         ]
-                     )
+        wrist = elbow + \
+                np.array(
+                    [
+                        self.length_elbow_to_gripper * np.cos(theta1 + theta2),
+                        self.length_elbow_to_gripper * np.sin(theta1 + theta2)
+                    ]
+                )
 
         result = dict(
-            elbow=(self.elbow[0], self.elbow[1]),
-            wrist=(self.wrist[0], self.wrist[1])
+            elbow=(elbow[0], elbow[1]),
+            wrist=(wrist[0], wrist[1])
         )
         return result
 
     def __get_all_states__(self):
         logger.debug(vars(self))
 
-    def consume_telemetry_msgs(self, exchange_name, binding_name, message_body):
+    async def robot_msg_handler(self, exchange_name, binding_name, message_body):
+
+        msg_attributes = message_body.keys()
+        if ("id" in msg_attributes) and \
+                ("shoulder" in msg_attributes) and \
+                ("theta1" in msg_attributes) and \
+                ("theta2" in msg_attributes) and \
+                ("base" in msg_attributes):
+            logger.debug(f'sub: exchange {exchange_name}: msg {message_body}')
+            self.consume_telemetry_queue.put_nowait(item=message_body)
+
+    async def consume_telemetry_msgs(self, **kwargs):
         """
         Consume telemetry messages from the Subscriber
-        :param exchange_name: Exchange name
-        :param binding_name: Binding name
-        :param message_body: message body
         :return: None
         """
         try:
-            for subscriber in self.amq_subscribers:
-                if subscriber.exchange_name == exchange_name:
-                    if "generator.robot." in binding_name:
-                        # extract robot id
-                        binding_delimited_array = binding_name.split(".")
-                        robot_id = binding_delimited_array[len(binding_delimited_array) - 1]
-                        message_body = ast.literal_eval(message_body.decode('utf-8'))
-                        msg_attributes = message_body.keys()
-                        if ("id" in msg_attributes) and \
-                                ("shoulder" in msg_attributes) and \
-                                ("theta1" in msg_attributes) and \
-                                ("theta2" in msg_attributes) and \
-                                ("base" in msg_attributes):
-                            if robot_id == message_body["id"] and self.id == robot_id:
-                                logger.debug(f'Sub: msg{message_body}')
-                                self.base = [message_body["base"][0], message_body["base"][1]]
-                                self.shoulder = [message_body["shoulder"][0], message_body["shoulder"][1]]
-                                self.theta1 = message_body["theta1"]
-                                self.theta2 = message_body["theta2"]
-                                self.data_ready = True
+            exchange_name = kwargs["exchange_name"]
+            binding_name = kwargs["binding_name"]
+            message_body = json.loads(kwargs["message_body"])
+
+            # check for matching subscriber with exchange and binding name in all subscribers
+            for subscriber in self.subscribers:
+                # if subscriber.exchange_name == exchange_name:
+                cb_str = subscriber.get_callback_handler_name()
+                if cb_str is not None:
+                    try:
+                        cb = getattr(self, cb_str)
+                    except:
+                        logging.critical(f'No Matching handler found for {cb_str}')
+                        continue
+                    if cb is not None:
+                        await cb(exchange_name=exchange_name, binding_name=binding_name, message_body=message_body)
 
         except AssertionError as e:
             logging.critical(e)

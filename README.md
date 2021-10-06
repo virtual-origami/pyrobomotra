@@ -42,7 +42,7 @@ Run `robot-motion-tracker` binary using command line:
 - `-i Robot ID`
 
 ```bash
-$ robot-motion-tracker -c config.yaml -i <robot-id>
+$ robot-motion-tracker -c config.yaml 
 ```
 
 ### Message Broker (RabbitMQ)
@@ -62,7 +62,7 @@ __NOTE__: The `rabbitmqtt` stack needs an external docker network called `iotsta
 2. To run the Application along with the RabbitMQ Broker connect the container with the `iotstack` network using:
 
     ```bash
-    $ docker run --rm --network=iotstack -t pyrobomotra:<version> -c config.yaml -i <robot-id>
+    $ docker run --rm --network=iotstack -t pyrobomotra:<version> -c config.yaml 
     ```
 
     __INFO__: Change the broker address in the `config.yaml` file to `rabbitmq` (name of the RabbitMQ Container in _rabbitmqtt_ stack)
