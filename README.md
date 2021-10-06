@@ -2,6 +2,9 @@
 
 Python Package / Application to track 2D Robotic Arm Movements.
 
+![Stateless App Build CI/CD Workflow Status](https://github.com/virtual-origami/pyrobomotra/workflows/Stateless%20App%20Build%20CI/CD/badge.svg?branch=rainbow_v1)
+
+
 ## Development
 
 ### Python3.x
@@ -35,8 +38,8 @@ Python Package / Application to track 2D Robotic Arm Movements.
 ### Usage
 Run `robot-motion-tracker` binary using command line:
 
-- -c configuration file path/name
-- -i Robot ID
+- `-c configuration file path/name`
+- `-i Robot ID`
 
 ```bash
 $ robot-motion-tracker -c config.yaml -i <robot-id>
@@ -69,3 +72,15 @@ __NOTE__: The `rabbitmqtt` stack needs an external docker network called `iotsta
     ```bash
     $ docker run --rm -v $(pwd)/config.yaml:/pyrobomotra/config.yaml --network=iotstack -t pyrobomotra:<version> -c config.yaml -i <robot-id>
     ```
+## Maintainers
+The repository is maintained by:
+
+- [Karthik Shenoy Panambur](mailto:she@biba.uni-bremen.de)
+- [Shantanoo Desai](mailto:des@biba.uni-bremen.de)
+
+[__BIBA - Bremer Institut für Produktion und Logistik GmbH__](www.biba.uni-bremen.de)
+
+## FUNDING
+
+* The development of this codebase and repository is driven through the [RAINBOW Project](https://rainbow-h2020.eu/). RAINBOW Project has received funding from the European Union’s Horizon 2020 programme under grant agreement number __871403__
+* The development of this codebase and repository is driven through the [ASSURED Project](https://www.project-assured.eu/). ASSURED project is funded by the European Union's Horizon 2020 programme under Grant Agreement number __952697__
