@@ -53,7 +53,7 @@ preset:
   attributes: &attributes
     interval: 0.1
 robot_motion_tracker:
-  version: "0.1" # Configuration Version-
+  version: "0.2" # Configuration Version-
   attributes: *attributes
   health_server: *health_server_info
   robots: # List of Robots to be simulated with unique ID
