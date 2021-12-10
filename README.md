@@ -62,15 +62,28 @@ __NOTE__: The `rabbitmqtt` stack needs an external docker network called `iotsta
 2. To run the Application along with the RabbitMQ Broker connect the container with the `iotstack` network using:
 
     ```bash
-    $ docker run --rm --network=iotstack -t pyrobomotra:<version> -c config.yaml 
+    $ docker run --rm --network=iotstack \
+        -e RABBITMQ=rabbitmq \
+        -e REDIS=redis \
+        -e REDIS_PASSWORD=rabbit \
+        -e RABBITMQ_USERNAME=admin \
+        -e RABBITMQ_PASSWORD=rabbit \
+        -t pyrobomotra:<version> -c config.yaml 
     ```
 
-    __INFO__: Change the broker address in the `config.yaml` file to `rabbitmq` (name of the RabbitMQ Container in _rabbitmqtt_ stack)
+    __INFO__: the broker address in the `config.yaml` resolves to `rabbitmq` (name of the RabbitMQ Container in _rabbitmqtt_ stack) via the 
+            Environment Variable `RABBITMQ`
 
 3. To run the a custom configuration for the Container use:
 
     ```bash
-    $ docker run --rm -v $(pwd)/config.yaml:/pyrobomotra/config.yaml --network=iotstack -t pyrobomotra:<version> -c config.yaml -i <robot-id>
+    $ docker run --rm -v $(pwd)/config.yaml:/pyrobomotra/config.yaml --network=iotstack \
+        -e RABBITMQ=rabbitmq \
+        -e REDIS=redis \
+        -e REDIS_PASSWORD=rabbit \
+        -e RABBITMQ_USERNAME=admin \
+        -e RABBITMQ_PASSWORD=rabbit \
+        -t pyrobomotra:<version> -c config.yaml -i <robot-id>
     ```
 ## Maintainers
 The repository is maintained by:
